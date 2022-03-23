@@ -9,6 +9,8 @@ terraform {
 }
 
 data "aws_caller_identity" "current" {}
+data "aws_region" "current" {}
+data "aws_organizations_organization" "myorg" {}
 
 # Singapore
 provider "aws" {
@@ -26,8 +28,8 @@ provider "aws" {
 # ap-southeast-3 to the list of regions for the standard AWS partition.
 # https://github.com/hashicorp/terraform-provider-aws/issues/22252
 provider "aws" {
-  alias  = "tertiary"
-  region = "ap-southeast-3"
+  alias                  = "tertiary"
+  region                 = "ap-southeast-3"
   skip_region_validation = true
 }
 
@@ -72,7 +74,7 @@ data "aws_iam_policy_document" "kms" {
 
     principals {
       type        = "AWS"
-      identifiers = ["arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"] 
+      identifiers = ["arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"]
     }
   }
 
@@ -96,4 +98,54 @@ data "aws_iam_policy_document" "kms" {
       identifiers = var.account_ids
     }
   }
+
+  statement {
+    sid       = "Allow CloudTrail to encrypt logs"
+    effect    = "Allow"
+    actions   = ["kms:GenerateDataKey*"]
+    resources = ["*"]
+    principals {
+      type        = "Service"
+      identifiers = ["cloudtrail.amazonaws.com"]
+    }
+    condition {
+      test     = "StringLike"
+      variable = "kms:EncryptionContext:aws:cloudtrail:arn"
+      values   = ["arn:aws:cloudtrail:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:trail/${var.trailName}"]
+    }
+    condition {
+      test     = "StringEquals"
+      variable = "aws:SourceArn"
+      values   = ["arn:aws:cloudtrail:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:trail/${var.trailName}"]
+    }
+  }
+}
+
+
+
+# data "aws_kms_key" "by_key_arn" {
+#   key_id = "arn:aws:kms:ap-southeast-1:217834192775:key/425b4824-aacd-413e-808f-e55ccc306472"
+# }
+
+
+
+resource "aws_kms_key" "by_key_arn" {
+  policy = data.aws_iam_policy_document.kms1.json
+}
+data "aws_iam_policy_document" "kms1" {
+
+  statement {
+    effect = "Allow"
+    actions = [
+      "kms:*"
+    ]
+
+    resources = ["*"]
+
+    principals {
+      type        = "AWS"
+      identifiers = ["arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"]
+    }
+  }
+
 }
