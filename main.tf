@@ -119,19 +119,34 @@ data "aws_iam_policy_document" "kms" {
       values   = ["arn:aws:cloudtrail:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:trail/${var.trailName}"]
     }
   }
+
+  statement {
+    sid       = "SQS-Sentinel-Integration"
+    effect    = "Allow"
+    actions   = ["kms:GenerateDataKey*", "kms:Decrypt"]
+    resources = ["*"]
+    principals {
+      type        = "Service"
+      identifiers = ["s3.amazonaws.com"]
+    }
+  }
+
+  statement {
+    sid       = "Sentinel-Integration"
+    effect    = "Allow"
+    actions   = ["kms:Encrypt", "kms:Decrypt", "kms:ReEncrypt*", "kms:GenerateDataKey*", "kms:DescribeKey"]
+    resources = ["*"]
+    principals {
+      type        = "AWS"
+      identifiers = ["arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/AzSentinelRole"]
+    }
+  }
 }
-
-
-
-# data "aws_kms_key" "by_key_arn" {
-#   key_id = "arn:aws:kms:ap-southeast-1:217834192775:key/425b4824-aacd-413e-808f-e55ccc306472"
-# }
-
-
 
 resource "aws_kms_key" "by_key_arn" {
   policy = data.aws_iam_policy_document.kms1.json
 }
+
 data "aws_iam_policy_document" "kms1" {
 
   statement {
